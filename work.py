@@ -6,6 +6,7 @@ import gzip
 from pathlib import Path
 import subprocess
 import yaml
+from datetime import datetime
 
 
 GENBANK_FTP = 'https://ftp.ncbi.nih.gov/genbank/'
@@ -64,7 +65,7 @@ def get_genbank_file_by_organism(gz_fd, organism_list=[]):
 
 def select_genbank_files(ctx):
     gb_file_prefix = ctx['gb_file_prefix']
-    base_path = ctx['base_path']
+    base_path = ctx['base_path'] / (datetime.today().isoformat()[:10])
     organism_list = ctx['organism_list']
 
     file_name_list = get_file_name_list(gb_file_prefix)
