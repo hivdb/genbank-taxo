@@ -5,4 +5,6 @@ all:
 	./env/bin/python work.py
 
 .PHONY:
-	start all
+	all start
+
+.DEFAULT_GOAL := all
