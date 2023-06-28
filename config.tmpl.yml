@@ -3,4 +3,4 @@ organism_list:
   - Human immunodeficiency virus 2
   - Simian immunodeficiency virus
 base_path: <base_path>
-gb_file_prefix: <genbank_file_prefix>
+gb_file_prefix: gbvrl
