@@ -7,6 +7,7 @@ from pathlib import Path
 import subprocess
 import yaml
 from datetime import datetime
+from concurrent import concurrent_work
 
 
 GENBANK_FTP = 'https://ftp.ncbi.nih.gov/genbank/'
@@ -97,43 +98,55 @@ def select_genbank_files(ctx):
     save_path.mkdir(exist_ok=True, parents=True)
 
     total_seq = 0
-    files = 0
+    files = []
 
     for file_path in base_path.iterdir():
-        print(file_path)
         if '.seq.gz' not in file_path.name:
             continue
 
-        files += 1
+        files.append(file_path)
 
-        bgzf_path = save_path / (file_path.stem + '.bgz')
-        sel_path = save_path / (file_path.stem + '.sel.gz')
+    context = [
+        (f, save_path, include_list, exclude_list)
+        for f in files
+    ]
 
-        with gzip.open(file_path, 'rt') as fd:
-            seq_info = get_genbank_file_by_organism(
-                fd, include_list, exclude_list)
+    for i in concurrent_work(
+            context, process_file, multi_arg=True, progress=True):
+        print(i)
 
-            seq_list = seq_info['genbank_files']
-            total_seq += len(seq_list)
 
-            print(
-                'Get',
-                f"{len(seq_list)}/{seq_info['total']}",
-                f'total {total_seq}')
-            print(f'#Files: {files}')
+def process_file(file_path, save_path, include_list, exclude_list):
+    bgzf_path = save_path / (file_path.stem + '.bgz')
+    sel_path = save_path / (file_path.stem + '.sel.gz')
 
-        if not seq_list:
-            continue
+    total_seq = 0
 
-        with bgzf.BgzfWriter(bgzf_path, 'wb') as fd:
-            SeqIO.write(seq_list, fd, 'genbank')
+    with gzip.open(file_path, 'rt') as fd:
+        seq_info = get_genbank_file_by_organism(
+            fd, include_list, exclude_list)
 
-        with bgzf.BgzfReader(bgzf_path, 'rb') as bgzfd:
-            with gzip.open(sel_path, 'w') as gzfd:
-                for i in bgzfd:
-                    gzfd.write(i)
+        seq_list = seq_info['genbank_files']
+        total_seq = len(seq_list)
 
-        bgzf_path.unlink(missing_ok=True)
+        print(
+            'Get',
+            f"{len(seq_list)}/{seq_info['total']}")
+
+    if not seq_list:
+        return total_seq
+
+    with bgzf.BgzfWriter(bgzf_path, 'wb') as fd:
+        SeqIO.write(seq_list, fd, 'genbank')
+
+    with bgzf.BgzfReader(bgzf_path, 'rb') as bgzfd:
+        with gzip.open(sel_path, 'w') as gzfd:
+            for i in bgzfd:
+                gzfd.write(i)
+
+    bgzf_path.unlink(missing_ok=True)
+
+    return total_seq
 
 
 def work():
@@ -155,7 +168,7 @@ def work():
     # config['base_path'] = (
     #     config['folder_path'] / (datetime.today().isoformat()[:10]))
 
-    config['save_path'] = config['base_path'] / 'sars2'
+    config['save_path'] = config['db_path'] / 'sars2'
     config['include_list'] = [i for i in config['exclude_list']]
     config['exclude_list'] = []
     print('Select:', ', '.join(config['include_list']))
