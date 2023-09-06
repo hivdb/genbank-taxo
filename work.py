@@ -118,35 +118,30 @@ def select_genbank_files(ctx):
 
 def process_file(file_path, save_path, include_list, exclude_list):
     bgzf_path = save_path / (file_path.stem + '.bgz')
-    sel_path = save_path / (file_path.stem + '.sel.gz')
-
-    total_seq = 0
+    # sel_path = save_path / (file_path.stem + '.sel.gz')
 
     with gzip.open(file_path, 'rt') as fd:
         seq_info = get_genbank_file_by_organism(
             fd, include_list, exclude_list)
 
         seq_list = seq_info['genbank_files']
-        total_seq = len(seq_list)
-
-        print(
-            'Get',
-            f"{len(seq_list)}/{seq_info['total']}")
 
     if not seq_list:
-        return total_seq
+        return len(seq_list), seq_info['total']
 
     with bgzf.BgzfWriter(bgzf_path, 'wb') as fd:
         SeqIO.write(seq_list, fd, 'genbank')
 
-    with bgzf.BgzfReader(bgzf_path, 'rb') as bgzfd:
-        with gzip.open(sel_path, 'w') as gzfd:
-            for i in bgzfd:
-                gzfd.write(i)
+    # TODO, why concurrent work not print progress bar?
 
-    bgzf_path.unlink(missing_ok=True)
+    # with bgzf.BgzfReader(bgzf_path, 'rb') as bgzfd:
+    #     with gzip.open(sel_path, 'w') as gzfd:
+    #         for i in bgzfd:
+    #             gzfd.write(i)
 
-    return total_seq
+    # bgzf_path.unlink(missing_ok=True)
+
+    return len(seq_list), seq_info['total']
 
 
 def work():
