@@ -1,6 +1,6 @@
-organism_list:
+include_list:
   - Human immunodeficiency virus 1
   - Human immunodeficiency virus 2
   - Simian immunodeficiency virus
-base_path: <base_path>
+db_path: <base_path>
 gb_file_prefix: gbvrl

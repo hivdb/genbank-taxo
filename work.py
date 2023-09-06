@@ -73,7 +73,7 @@ def get_genbank_file_by_organism(gz_fd, include_list=[], exclude_list=[]):
 
 def download_genbank_files(ctx):
     gb_file_prefix = ctx['gb_file_prefix']
-    base_path = ctx['base_path'] / (datetime.today().isoformat()[:10])
+    base_path = ctx['base_path']
 
     file_name_list = get_file_name_list(gb_file_prefix)
 
@@ -90,18 +90,21 @@ def download_genbank_files(ctx):
 
 
 def select_genbank_files(ctx):
-    base_path = ctx['base_path'] / (datetime.today().isoformat()[:10])
+    base_path = ctx['base_path']
     include_list = ctx['include_list']
     exclude_list = ctx['exclude_list']
     save_path = ctx['save_path']
     save_path.mkdir(exist_ok=True, parents=True)
 
     total_seq = 0
+    files = 0
 
     for file_path in base_path.iterdir():
         print(file_path)
         if '.seq.gz' not in file_path.name:
             continue
+
+        files += 1
 
         bgzf_path = save_path / (file_path.stem + '.bgz')
         sel_path = save_path / (file_path.stem + '.sel.gz')
@@ -117,6 +120,7 @@ def select_genbank_files(ctx):
                 'Get',
                 f"{len(seq_list)}/{seq_info['total']}",
                 f'total {total_seq}')
+            print(f'#Files: {files}')
 
         if not seq_list:
             continue
@@ -143,12 +147,17 @@ def work():
         i.lower()
         for i in config['exclude_list']
     ]
-    config['base_path'] = Path(config['base_path']).expanduser().resolve()
+    config['db_path'] = Path(config['db_path']).expanduser().resolve()
+    config['base_path'] = config['db_path'] / "2023-09-05"
 
     download_genbank_files(config)
 
-    config['save_path'] = config['base_path'] / 'non_sars2'
-    config['include_list'] = []
+    # config['base_path'] = (
+    #     config['folder_path'] / (datetime.today().isoformat()[:10]))
+
+    config['save_path'] = config['base_path'] / 'sars2'
+    config['include_list'] = [i for i in config['exclude_list']]
+    config['exclude_list'] = []
     print('Select:', ', '.join(config['include_list']))
     print('Select:', ', '.join(config['exclude_list']))
     select_genbank_files(config)
