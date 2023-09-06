@@ -46,7 +46,7 @@ def get_file_name_list(prefix):
     return file_names
 
 
-def get_genbank_file_by_organism(gz_fd, organism_list=[]):
+def get_genbank_file_by_organism(gz_fd, include_list=[], exclude_list=[]):
 
     genbank_file_list = []
 
@@ -54,7 +54,15 @@ def get_genbank_file_by_organism(gz_fd, organism_list=[]):
     for rec in SeqIO.parse(gz_fd, 'genbank'):
         total += 1
 
-        if rec.annotations['organism'].lower() in organism_list:
+        if include_list and \
+                rec.annotations['organism'].lower() in include_list:
+            genbank_file_list.append(rec)
+            continue
+
+        if exclude_list and \
+                rec.annotations['organism'].lower() in exclude_list:
+            continue
+        else:
             genbank_file_list.append(rec)
 
     return {
@@ -63,41 +71,44 @@ def get_genbank_file_by_organism(gz_fd, organism_list=[]):
     }
 
 
-def select_genbank_files(ctx):
+def download_genbank_files(ctx):
     gb_file_prefix = ctx['gb_file_prefix']
     base_path = ctx['base_path'] / (datetime.today().isoformat()[:10])
-    organism_list = ctx['organism_list']
 
     file_name_list = get_file_name_list(gb_file_prefix)
 
     print('#Files', len(file_name_list))
 
-    total_seq = 0
-
     for gz_file_name in tqdm(file_name_list):
 
         file_path = base_path / gz_file_name
-        bgzf_path = base_path / (file_path.stem + '.bgz')
-        sel_path = base_path / (file_path.stem + '.sel.gz')
-
-        if sel_path.exists():
-            with gzip.open(sel_path, 'rt') as fd:
-                seq_list = list(SeqIO.parse(fd, 'genbank'))
-                total_seq += len(seq_list)
-                print(
-                    'Get',
-                    f"{len(seq_list)}",
-                    f'total {total_seq}')
+        if file_path.exists():
             continue
-
-        file_path.unlink(missing_ok=True)
 
         gz_file_url = GENBANK_FTP + gz_file_name
         download_gz(gz_file_url, base_path)
 
+
+def select_genbank_files(ctx):
+    base_path = ctx['base_path'] / (datetime.today().isoformat()[:10])
+    include_list = ctx['include_list']
+    exclude_list = ctx['exclude_list']
+    save_path = ctx['save_path']
+    save_path.mkdir(exist_ok=True, parents=True)
+
+    total_seq = 0
+
+    for file_path in base_path.iterdir():
+        print(file_path)
+        if '.seq.gz' not in file_path.name:
+            continue
+
+        bgzf_path = save_path / (file_path.stem + '.bgz')
+        sel_path = save_path / (file_path.stem + '.sel.gz')
+
         with gzip.open(file_path, 'rt') as fd:
             seq_info = get_genbank_file_by_organism(
-                fd, organism_list)
+                fd, include_list, exclude_list)
 
             seq_list = seq_info['genbank_files']
             total_seq += len(seq_list)
@@ -106,8 +117,6 @@ def select_genbank_files(ctx):
                 'Get',
                 f"{len(seq_list)}/{seq_info['total']}",
                 f'total {total_seq}')
-
-        file_path.unlink(missing_ok=True)
 
         if not seq_list:
             continue
@@ -126,13 +135,22 @@ def select_genbank_files(ctx):
 def work():
 
     config = load_yaml('config.yml')
-    config['organism_list'] = [
+    config['include_list'] = [
         i.lower()
-        for i in config['organism_list']
+        for i in config['include_list']
+    ]
+    config['exclude_list'] = [
+        i.lower()
+        for i in config['exclude_list']
     ]
     config['base_path'] = Path(config['base_path']).expanduser().resolve()
 
-    print('Select:', ', '.join(config['organism_list']))
+    download_genbank_files(config)
+
+    config['save_path'] = config['base_path'] / 'non_sars2'
+    config['include_list'] = []
+    print('Select:', ', '.join(config['include_list']))
+    print('Select:', ', '.join(config['exclude_list']))
     select_genbank_files(config)
 
 
