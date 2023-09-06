@@ -55,16 +55,16 @@ def get_genbank_file_by_organism(gz_fd, include_list=[], exclude_list=[]):
     for rec in SeqIO.parse(gz_fd, 'genbank'):
         total += 1
 
-        if include_list and \
-                rec.annotations['organism'].lower() in include_list:
-            genbank_file_list.append(rec)
+        if include_list:
+            if rec.annotations['organism'].lower() in include_list:
+                genbank_file_list.append(rec)
             continue
 
-        if exclude_list and \
-                rec.annotations['organism'].lower() in exclude_list:
-            continue
-        else:
-            genbank_file_list.append(rec)
+        if exclude_list:
+            if rec.annotations['organism'].lower() in exclude_list:
+                continue
+
+        genbank_file_list.append(rec)
 
     return {
         'genbank_files': genbank_file_list,
