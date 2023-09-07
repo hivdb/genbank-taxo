@@ -101,7 +101,7 @@ def select_genbank_files(ctx):
     files = []
 
     for file_path in base_path.iterdir():
-        if '.seq.gz' not in file_path.name:
+        if not file_path.name.endswith('.seq.gz'):
             continue
 
         files.append(file_path)
@@ -118,7 +118,7 @@ def select_genbank_files(ctx):
 
 def process_file(file_path, save_path, include_list, exclude_list):
     bgzf_path = save_path / (file_path.stem + '.bgz')
-    # sel_path = save_path / (file_path.stem + '.sel.gz')
+    sel_path = save_path / (file_path.stem + '.sel.gz')
 
     with gzip.open(file_path, 'rt') as fd:
         seq_info = get_genbank_file_by_organism(
@@ -134,12 +134,12 @@ def process_file(file_path, save_path, include_list, exclude_list):
 
     # TODO, why concurrent work not print progress bar?
 
-    # with bgzf.BgzfReader(bgzf_path, 'rb') as bgzfd:
-    #     with gzip.open(sel_path, 'w') as gzfd:
-    #         for i in bgzfd:
-    #             gzfd.write(i)
+    with bgzf.BgzfReader(bgzf_path, 'rb') as bgzfd:
+        with gzip.open(sel_path, 'w') as gzfd:
+            for i in bgzfd:
+                gzfd.write(i)
 
-    # bgzf_path.unlink(missing_ok=True)
+    bgzf_path.unlink(missing_ok=True)
 
     return len(seq_list), seq_info['total']
 
@@ -163,11 +163,10 @@ def work():
     # config['base_path'] = (
     #     config['folder_path'] / (datetime.today().isoformat()[:10]))
 
-    config['save_path'] = config['db_path'] / 'sars2'
-    config['include_list'] = [i for i in config['exclude_list']]
-    config['exclude_list'] = []
+    config['save_path'] = config['db_path'] / 'hiv'
+
     print('Select:', ', '.join(config['include_list']))
-    print('Select:', ', '.join(config['exclude_list']))
+    print('Exclude:', ', '.join(config['exclude_list']))
     select_genbank_files(config)
 
 
