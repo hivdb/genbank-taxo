@@ -1,6 +1,7 @@
 from multiprocessing import Pool
 from unittest import result  # noqa, TODO
 from tqdm import tqdm
+from more_itertools import ichunked
 
 
 def concurrent_work(
@@ -70,6 +71,9 @@ def pool_starmap_work(context_list, func, **kwargs):
 
     POOL_SIZE = kwargs['POOL_SIZE']
 
+    context_list = ichunked(context_list, POOL_SIZE)
+
     with Pool(POOL_SIZE) as p:
-        for ret in p.starmap(func, context_list):
-            yield ret
+        for c in context_list:
+            for ret in p.starmap(func, c):
+                yield ret

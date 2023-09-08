@@ -80,14 +80,25 @@ def download_genbank_files(ctx):
 
     print('#Files', len(file_name_list))
 
-    for gz_file_name in tqdm(file_name_list):
+    context = [
+        (base_path, i)
+        for i in file_name_list
+    ]
 
-        file_path = base_path / gz_file_name
-        if file_path.exists():
-            continue
+    for i in concurrent_work(
+            context, download_worker,
+            multi_arg=True, progress=True):
+        pass
 
-        gz_file_url = GENBANK_FTP + gz_file_name
-        download_gz(gz_file_url, base_path)
+
+def download_worker(base_path, gz_file_name):
+
+    file_path = base_path / gz_file_name
+    if file_path.exists():
+        return
+
+    gz_file_url = GENBANK_FTP + gz_file_name
+    download_gz(gz_file_url, base_path)
 
 
 def select_genbank_files(ctx):
@@ -163,11 +174,11 @@ def work():
     # config['base_path'] = (
     #     config['folder_path'] / (datetime.today().isoformat()[:10]))
 
-    config['save_path'] = config['db_path'] / 'hiv'
+    # config['save_path'] = config['db_path'] / 'hiv'
 
-    print('Select:', ', '.join(config['include_list']))
-    print('Exclude:', ', '.join(config['exclude_list']))
-    select_genbank_files(config)
+    # print('Select:', ', '.join(config['include_list']))
+    # print('Exclude:', ', '.join(config['exclude_list']))
+    # select_genbank_files(config)
 
 
 if __name__ == '__main__':
