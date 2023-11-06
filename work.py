@@ -167,7 +167,7 @@ def work():
         for i in config['exclude_list']
     ]
     config['db_path'] = Path(config['db_path']).expanduser().resolve()
-    config['base_path'] = config['db_path'] / "2023-09-05"
+    config['base_path'] = config['db_path'] / config['date']
 
     download_genbank_files(config)
 
