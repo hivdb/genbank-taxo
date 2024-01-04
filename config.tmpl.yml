@@ -4,3 +4,6 @@ include_list:
   - Simian immunodeficiency virus
 db_path: <base_path>
 gb_file_prefix: gbvrl
+exclude_list:
+  - Severe acute respiratory syndrome coronavirus 2
+date: "<genbank release date>"
