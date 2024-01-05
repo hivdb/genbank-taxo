@@ -1,5 +1,4 @@
 from multiprocessing import Pool
-from unittest import result  # noqa, TODO
 from tqdm import tqdm
 from more_itertools import ichunked
 

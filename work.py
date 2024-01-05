@@ -1,12 +1,10 @@
 import requests
 import re
-from tqdm import tqdm
-from Bio import SeqIO, bgzf
+from Bio import bgzf
 import gzip
 from pathlib import Path
 import subprocess
 import yaml
-from datetime import datetime
 from concurrent import concurrent_work
 
 
@@ -47,41 +45,63 @@ def get_file_name_list(prefix):
     return file_names
 
 
+def check_organism(genbank_file, include_list=[], exclude_list=[]):
+
+    # exclude has higher priority than include
+
+    for i in exclude_list:
+        if i.lower() in genbank_file.lower():
+            return False
+
+    if not include_list:
+        return True
+
+    for i in include_list:
+        if i.lower() in genbank_file.lower():
+            return True
+
+    return False
+
+
 def get_genbank_file_by_organism(gz_fd, include_list=[], exclude_list=[]):
 
-    genbank_file_list = []
+    all_genbank_files = []
+    one_genbank_file = []
 
-    total = 0
-    for rec in SeqIO.parse(gz_fd, 'genbank'):
-        total += 1
+    for line in gz_fd:
+        if line.startswith('//'):
+            one_genbank_file.append(line)
+            all_genbank_files.append(''.join(one_genbank_file))
+            one_genbank_file = []
+        else:
+            one_genbank_file.append(line)
 
-        if include_list:
-            if rec.annotations['organism'].lower() in include_list:
-                genbank_file_list.append(rec)
-            continue
+    if one_genbank_file:
+        print('show be no one genbank file')
+        all_genbank_files.append(''.join(one_genbank_file))
 
-        if exclude_list:
-            if rec.annotations['organism'].lower() in exclude_list:
-                continue
-
-        genbank_file_list.append(rec)
+    sel_genbank_files = [
+        i
+        for i in all_genbank_files
+        if check_organism(i, include_list, exclude_list)
+    ]
 
     return {
-        'genbank_files': genbank_file_list,
-        'total': total,
+        'genbank_files': sel_genbank_files,
+        'total': len(all_genbank_files),
     }
 
 
 def download_genbank_files(ctx):
     gb_file_prefix = ctx['gb_file_prefix']
-    base_path = ctx['base_path']
+    release_path = ctx['release_path']
 
     file_name_list = get_file_name_list(gb_file_prefix)
 
     print('#Files', len(file_name_list))
 
     context = [
-        (base_path, i)
+        (release_path, i)
         for i in file_name_list
     ]
 
@@ -91,43 +111,55 @@ def download_genbank_files(ctx):
         pass
 
 
-def download_worker(base_path, gz_file_name):
+def download_worker(release_path, gz_file_name):
 
-    file_path = base_path / gz_file_name
+    file_path = release_path / gz_file_name
     if file_path.exists():
-        return
+        return True
 
     gz_file_url = GENBANK_FTP + gz_file_name
-    download_gz(gz_file_url, base_path)
+    download_gz(gz_file_url, release_path)
+
+    return True
 
 
 def select_genbank_files(ctx):
-    base_path = ctx['base_path']
+    release_path = ctx['release_path']
+
     include_list = ctx['include_list']
     exclude_list = ctx['exclude_list']
+
+    dry_run = ctx['dry_run']
+
     save_path = ctx['save_path']
     save_path.mkdir(exist_ok=True, parents=True)
 
     total_seq = 0
     files = []
 
-    for file_path in base_path.iterdir():
+    for file_path in release_path.iterdir():
         if not file_path.name.endswith('.seq.gz'):
             continue
 
         files.append(file_path)
 
+    files.sort(key=lambda x: int(re.search(r'\d+', x.name).group()))
+
     context = [
-        (f, save_path, include_list, exclude_list)
+        (f, save_path, include_list, exclude_list, dry_run)
         for f in files
     ]
 
-    for i in concurrent_work(
+    for (num_seq, num_total) in concurrent_work(
             context, process_file, multi_arg=True, progress=True):
-        print(i)
+        # print('seq/total:', num_seq / num_total)
+        total_seq += num_seq
+
+    print(f'Selected #{total_seq} sequences')
 
 
-def process_file(file_path, save_path, include_list, exclude_list):
+def process_file(
+        file_path, save_path, include_list, exclude_list, dry_run=True):
     bgzf_path = save_path / (file_path.stem + '.bgz')
     sel_path = save_path / (file_path.stem + '.sel.gz')
 
@@ -140,10 +172,12 @@ def process_file(file_path, save_path, include_list, exclude_list):
     if not seq_list:
         return len(seq_list), seq_info['total']
 
-    with bgzf.BgzfWriter(bgzf_path, 'wb') as fd:
-        SeqIO.write(seq_list, fd, 'genbank')
+    if dry_run:
+        return len(seq_list), seq_info['total']
 
-    # TODO, why concurrent work not print progress bar?
+    with bgzf.BgzfWriter(bgzf_path, 'wb') as fd:
+        for i in seq_list:
+            fd.write(f'{i}\n')
 
     with bgzf.BgzfReader(bgzf_path, 'rb') as bgzfd:
         with gzip.open(sel_path, 'w') as gzfd:
@@ -158,30 +192,20 @@ def process_file(file_path, save_path, include_list, exclude_list):
 def work():
 
     config = load_yaml('config.yml')
-    config['include_list'] = [
-        i.lower()
-        for i in config['include_list']
-    ]
-    config['exclude_list'] = [
-        i.lower()
-        for i in config['exclude_list']
-    ]
     config['db_path'] = Path(config['db_path']).expanduser().resolve()
-    config['base_path'] = config['db_path'] / config['date']
+    config['release_path'] = config['db_path'] / config['date']
 
     download_genbank_files(config)
 
-    # config['base_path'] = (
-    #     config['folder_path'] / (datetime.today().isoformat()[:10]))
+    config['include_list'] = config.get('include_list', [])
+    config['exclude_list'] = config.get('exclude_list', [])
 
-    # config['save_path'] = config['db_path'] / 'hiv'
+    config['save_path'] = config['db_path'] / config['extract_folder']
 
-    # print('Select:', ', '.join(config['include_list']))
-    # print('Exclude:', ', '.join(config['exclude_list']))
-    # select_genbank_files(config)
+    print('Include:', ', '.join(config['include_list']))
+    print('Exclude:', ', '.join(config['exclude_list']))
+    select_genbank_files(config)
 
 
 if __name__ == '__main__':
     work()
-
-# TODO check malform

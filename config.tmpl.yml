@@ -7,3 +7,5 @@ gb_file_prefix: gbvrl
 exclude_list:
   - Severe acute respiratory syndrome coronavirus 2
 date: "<genbank release date>"
+extract_folder: "<extract specific species path>"
+dry_run: false
