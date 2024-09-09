@@ -10,6 +10,7 @@ def concurrent_work(
 
     worker = pool_map_work
 
+
     if iter:
         worker = iterative_work
     elif multi_arg:
